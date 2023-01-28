@@ -9,10 +9,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
+
+import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { JwtAuthGuard } from './jwt.guard';
 import { LocalAuthGuard } from './local.guard';
 
 @Controller('auth')
@@ -22,9 +23,10 @@ export class AuthController {
     private readonly authService: AuthService,
   ) {}
 
-  private readonly jwtName = this.configService.get('JWT_NAME');
-  private readonly isProduction =
-    this.configService.get('NODE_ENV') === 'production';
+  private readonly accessTokenName =
+    this.configService.get('ACCESS_TOKEN_NAME');
+  private readonly refreshTokenName =
+    this.configService.get('REFRESH_TOKEN_NAME');
 
   @UseGuards(LocalAuthGuard)
   @Post('/login')
@@ -33,15 +35,19 @@ export class AuthController {
     @Body() loginDto: LoginDto,
   ) {
     const loginResponse = await this.authService.login(loginDto);
-    const { token, ...rest } = loginResponse;
+    const { accessToken, refreshToken, ...rest } = loginResponse;
 
     if (rest.success) {
-      res.cookie(this.jwtName, token, {
-        httpOnly: true,
-        signed: true,
-        sameSite: 'lax',
-        secure: this.isProduction,
-      });
+      res.cookie(
+        this.accessTokenName,
+        accessToken,
+        this.authService.getCookieOptions(),
+      );
+      res.cookie(
+        this.refreshTokenName,
+        refreshToken,
+        this.authService.getCookieOptions(),
+      );
     }
 
     return rest;
@@ -52,10 +58,9 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(AuthGuard)
   @Get('/me')
   me(@Req() req: Request) {
-    // find any user data
     return req.user;
   }
 }
