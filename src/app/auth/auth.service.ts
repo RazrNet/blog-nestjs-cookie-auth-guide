@@ -4,13 +4,16 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
 import { User } from '../users/entities/user.entity';
+import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly jwtService: JwtService,
   ) {}
 
   async validateUser(
@@ -35,13 +38,16 @@ export class AuthService {
     return user;
   }
 
-  async login(): Promise<{
-    message: string;
-    token?: string;
-    success: boolean;
-  }> {
+  async login(
+    loginDto: LoginDto,
+  ): Promise<{ message: string; token?: string; success: boolean }> {
+    const user = await this.validateUser(loginDto.email, loginDto.password);
+
+    const token = this.jwtService.sign({ sub: user.id });
+
     return {
       message: 'Login success',
+      token,
       success: true,
     };
   }
