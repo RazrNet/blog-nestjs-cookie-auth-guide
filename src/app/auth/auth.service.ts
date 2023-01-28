@@ -1,0 +1,71 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+
+import { User } from '../users/entities/user.entity';
+import { RegisterDto } from './dto/register.dto';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+  ) {}
+
+  async validateUser(
+    email: string,
+    pass: string,
+  ): Promise<Partial<User> | null> {
+    const { password, ...user } = await this.userRepository.findOne({
+      select: ['id', 'email', 'password'],
+      where: { email },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(pass, password);
+
+    if (!isPasswordCorrect) {
+      return null;
+    }
+
+    return user;
+  }
+
+  async login(): Promise<{
+    message: string;
+    token?: string;
+    success: boolean;
+  }> {
+    return {
+      message: 'Login success',
+      success: true,
+    };
+  }
+
+  async register(
+    registerDto: RegisterDto,
+  ): Promise<{ message: string; success: boolean }> {
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+
+    const savedUser = await this.userRepository.save({
+      email: registerDto.email,
+      password: hashedPassword,
+    });
+
+    if (!savedUser) {
+      return {
+        message: 'Registration failed',
+        success: false,
+      };
+    }
+
+    return {
+      message: 'Registration successful',
+      success: true,
+    };
+  }
+}
